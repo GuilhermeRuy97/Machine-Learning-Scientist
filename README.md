@@ -1,6 +1,7 @@
 Tracks:
 
-1. Machine Learning Scientist with Python
+Machine Learning Scientist with Python:
+
   1. Machine Learning with sicit-learn
   1. Unsupervised Learning in Python
   1. Linear Classifiers in Python
