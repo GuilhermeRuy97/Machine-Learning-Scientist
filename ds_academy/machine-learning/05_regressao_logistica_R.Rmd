@@ -1,0 +1,254 @@
+---
+title: "Logistic Regression for Money Loan approve"
+output: html_notebook
+---
+
+Tutorial R markdown:
+This is an [R Markdown](http://rmarkdown.rstudio.com)
+
+Execute chunk: Click the *Run* button within the chunk or by place your cursor inside  and press *Ctrl+Shift+Enter*. 
+
+Add new chunk: Click *Insert Chunk* button on the toolbar or by press *Ctrl+Alt+I*.
+
+Display HTML preview: Click the *Preview* button or press *Ctrl+Shift+K*.
+
+---
+```{r setup, include=FALSE, echo=FALSE}
+# Setting work directory
+require("knitr")
+opts_knit$set(root.dir = "C:/R_archives/")
+```
+## Show actual directory
+```{r}
+getwd()
+```
+## Packages installation 
+import name in py
+```{r message=FALSE, warning=FALSE}
+# Install
+install.packages('ROCR')   # p/ ROC curve
+install.packages('caret', dependencies = True)  # p/ machine learning models
+install.packages('e1071', dependencies = True)
+
+# Load
+library(caret)
+library(ROCR)
+library(e1071)
+```
+## Load
+df = pd.read(csv) in py<br>
+note: this dataset has no missing values (NA's) nor outliers!
+```{r}
+dataset_cred <- read.csv('credit_dataset.csv', header = TRUE, sep = ',') 
+```
+## Data first 5 rows
+df.head(5) in py
+```{r}
+head( dataset_cred, 5  )
+```
+## Data general statistics
+df.describe() in py
+```{r}
+summary( dataset_cred )
+```
+## Data types of the Structure
+df.dtypes in py
+```{r}
+str( dataset_cred )
+```
+## Opening a new tab to view the dataset
+```{r}
+View( dataset_cred )
+```
+## Creating a function to transform categorical vars that should be numeric
+What is factor variables in R?"<br>
+https://www.guru99.com/r-factor-categorical-continuous.html
+```{r}
+to.factors <- function( dataset, variables ){
+  for (var in variables){
+    dataset[[ var ]] <- as.factor( dataset[[ var ]] )
+  }
+  return (dataset)
+}
+```
+## Create normalization function
+```{r}
+scale.features <- function( dataset, variables ){
+  for (var in variables){
+    dataset[[ var ]] <- scale( dataset[[ var ]], center = T, scale = T )
+  }
+  return (dataset)
+}
+```
+## Aplly normalization function above for 3 numeric variables
+```{r}
+ds_numeric.vars <- c( 'age', 'credit.duration.months', 'credit.amount'  )
+
+dataset_cred_scaled <- scale.features( dataset_cred, ds_numeric.vars )
+```
+## Apply 'to.factors' function created above for misclassified categorical variables
+```{r}
+ds_categorical.vars <- c( 'credit.rating', 'account.balance', 'previous.credit.payment.status',
+                          'credit.purpose', 'savings', 'employment.duration',
+                          'installment.rate', 'marital.status', 'guarantor', 
+                          'residence.duration', 'current.assets',  'other.credits',                                                      'apartment.type', 'bank.credits', 'occupation', 
+                          'dependents', 'telephone', 'foreign.worker' )
+
+dataset_cred <- to.factors( dataset = dataset_cred_scaled, variables = ds_categorical.vars )
+```
+## Checking new ds data types
+```{r}
+str( dataset_cred )
+```
+## Splitting data into Train and Test
+```{r}
+# Random sample of size 70%
+indexes_70_percent_sample <- sample( 1:nrow( dataset_cred ), size = 0.7 * nrow( dataset_cred ) )
+
+train.data <- dataset_cred[indexes_70_percent_sample, ]
+test.data  <- dataset_cred[-indexes_70_percent_sample, ]
+```
+## Checking train and test types
+```{r}
+class(train.data)
+class(test.data)
+```
+## Splitting explanatory variables and target variable
+```{r}
+test.feature.variables <- test.data[ , -1]
+test.class.variable <- test.data[ , 1]     # "credit.rating"
+```
+## Checking explanatory and target types
+```{r}
+class(test.feature.variables)
+class(test.class.variable)
+```
+## Logistic Model construction
+- We use a formula where what comes before tilde (~) is the target variables, and what comes next are explanatory variables<br>
+Obs: "." (dot) is an abbreviation for "all variables"
+
+- We use the function `glm()` for the model construction
+- We use family as binomial because it's a binary classification (logistic: [0,1])
+```{r}
+formula.string.init <- 'credit.rating ~ .'
+formula <- as.formula(formula.string.init)
+
+model_rl_1 <- glm( formula = formula, data = train.data, family = 'binomial' )
+```
+## Checking the summary of the model above
+```{r}
+summary( model_rl_1 )
+```
+
+## Predicting with model 1
+We pass type = 'response' so it returns us the target variable
+```{r}
+predictions <- predict( model_rl_1, test.data, type = 'response' )
+```
+## Transforming the result into [0,1]
+When we predict, the result is a probability, so we use the round() to transform it
+```{r}
+predictions <- round( predictions )
+View( predictions )
+```
+## Generating a confusion matrix to see the model performance
+```{r}
+confusionMatrix( table( data = predictions, reference = test.class.variable ), positive = '1' )
+```
+
+## Feature Selection for Model version 2
+- The trainControl() creates a method that repeats the model with CV multiple times
+- The train() receives the 'glm' parameter, wich stands for 'logistic regression'
+- The varImp() extract the importance of the variables
+```{r}
+# Recreating formula for model 2
+formula.string.init <- 'credit.rating ~ .'
+formula <- as.formula( formula.string.init )
+
+control <- trainControl( method = 'repeatedcv', number = 10, repeats = 2 )
+model <- train( formula.init, data = train.data, method = 'glm', trControl = control )
+
+importance <- varImp( model, scale = FALSE )
+```
+## Plotting the result of varImp (importance of variables)
+Obs: The result might chance each time we run it
+```{r}
+plot( importance )
+```
+## Model construct with 4 selected variables above
+```{r}
+formula.2 <- 'credit.rating  ~ account.balance + credit.purpose + savings + employment.duration'
+formula.2 <- as.formula( formula.new )
+
+model_rl_2 <- glm( formula = formula.2, data = train.data, family = 'binomial' )
+```
+## Summary of model 2
+```{r}
+summary( model_rl_2 )
+```
+## Predict and measure performance
+```{r}
+predictions_new <- predict( model_rl_2, test.data, type = 'response' )
+# Transform [0,1]
+predictions_new <- round( predictions_new )
+```
+## Generating a confusion matrix to see the model 2 performance
+```{r}
+confusionMatrix( table( data = predictions_new, reference = test.class.variable), positive = '1' )
+```
+
+### We had a lower accuracy, but the model is probably more generalizable and less complex than before
+```{r}
+```
+## Perfomance avaliation of the final model (model 2)
+```{r}
+final_model <- model_rl_2
+
+final_predictions <- predict( final_model, test.feature.variables, type = 'response' )
+
+evaluation <- prediction( final_predictions, test.class.variable )
+```
+## Performance witth ROC Curve
+```{r}
+# Create function to plot ROC Curve
+plot.roc.curve <- function( predictions, title.text ){
+  perform <- performance( predictions, "tpr", "fpr" )
+  plot( perform, col = 'black', lty = 1, lwd = 2,
+        main = title.text, cex.main = 0.6, cex.lab = 0.8, xaxs = 'i', yaxs = 'i' )
+  abline( 0, 1, col = 'red' )
+  
+  auc <- performance( predictions, 'auc' )
+  auc <- unlist( slot( auc, 'y.values' ) )
+  auc <- round( auc, 2 )
+  legend( 0.4, 0.4, legend = c( paste0( 'AUC: ', auc) ), cex = 0.6, bty = 'n',
+          box.col = 'white' )
+}
+
+# Plot
+par( mfrow = c(1, 2) )
+plot.roc.curve( evaluation, title.text = 'ROC Curve' )
+```
+
+## Predic for new Data
+```{r}
+# New data input (2 new clients)
+account.balance <- c(1, 3, 2, 2)
+credit.purpose <- c(4, 2, 4, 2)
+employment.duration <- c(3, 4, 1, 1)
+savings <- c(2, 3, 1, 2)
+
+# Create dataframe for new data
+new_dataset_test <- data.frame( account.balance, 
+                                credit.purpose,
+                                employment.duration,
+                                savings )
+
+# Apply categorical and numeric (none here) transform into new dataset
+new.categorical.variables <- c('account.balance', 'credit.purpose', 'savings', 'employment.duration')
+new_dataset_test <- to.factors( dataset = new_dataset_test, variables = new.categorical.variables )
+```
+## Predicting with new dataset
+```{r}
+new_clients_preview <- predict( final_model, newdata = new_dataset_test, type = 'response' )
+round( new_clients_preview )
+```
